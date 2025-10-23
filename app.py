@@ -1,5 +1,6 @@
 import streamlit as st
 from pathlib import Path
+import pandas as pd
 
 from sections.intro import render as render_intro
 from sections.overview import render as render_overview
@@ -7,11 +8,6 @@ from sections.debug import render as render_debug
 
 from utils.io import load_data_cached, dir_signature
 from utils.prep import make_df_clean_cached
-
-# Chargement des données (df_raw + df_clean)
-sig = dir_signature("data")
-df_raw = load_data_cached(sig, "data")
-df_clean = make_df_clean_cached(df_raw)
 
 st.set_page_config(
     page_title="Paris, un marché en mutation (2020–2024)",
@@ -22,49 +18,97 @@ st.set_page_config(
 st.title("Paris, un marché en mutation (2020–2024)")
 st.caption("DVF géolocalisées (data.gouv.fr) — Département 75")
 
-# Bandeau court (visible sur tous les onglets)
-st.markdown(
-    """
-**Paris, un marché en mutation (2020–2024).**  
-À partir des **DVF géolocalisées (75)**, ce tableau de bord raconte le basculement post-Covid : **prix au m², volumes, mix** par période, arrondissement et typologie.
+# ---------- Chargement (avec cache) ----------
+sig = dir_signature("data")
+df_raw = load_data_cached(sig, "data")
+df_clean = make_df_clean_cached(df_raw)
 
-**🎯 Objectifs.** Comprendre le cycle (pic 2021–2022 → refroidissement 2023–2024) · Comparer par arrondissement & type de bien · Aider à décider (timing, budget, surface).  
-**🧾 Périmètre.** Ventes de logements (appartements/maisons), 2020–2024 · Nettoyage : normalisation, **prix/m²**, filtres cohérence (surfaces < 9 m², coupe douce des extrêmes).  
-**🔎 Lecture.** D’abord **Overview** (3 KPIs) → **Deep Dives** (Temps, Géographie, Mix, Distribution, Qualité) → **Conclusion**. 
-"""
-)
-
-# --- Sidebar : état des fichiers ---
+# ---------- Sidebar ----------
 with st.sidebar:
-    st.header("Projet")
-    st.write("**Dossier données (./data)** : `75_2020.csv` … `75_2024.csv`")
+    st.header("Projet & Données")
     data_dir = Path("data")
-    if data_dir.exists():
-        files = sorted(data_dir.glob("75_*.csv"))
-        if files:
-            st.success("Fichiers détectés :")
-            for f in files:
-                st.write("•", f.name)
-        else:
-            st.info("Aucun fichier `75_*.csv` trouvé.")
+    files = sorted(data_dir.glob("75_*.csv")) if data_dir.exists() else []
+    if files:
+        st.success(f"{len(files)} fichier(s) détecté(s)")
+        for f in files:
+            st.write("•", f.name)
     else:
-        st.info("Le dossier `./data` n’existe pas encore.")
+        st.info("Aucun fichier `75_*.csv` trouvé.")
 
-# --- TAB ----
+    st.divider()
+    st.subheader("Filtres (globaux)")
+    years_avail = df_clean["annee"].dropna().astype(int)
+    ymin, ymax = int(years_avail.min()), int(years_avail.max())
+
+    if "surface_reelle_bati" in df_clean.columns:
+        s_min = int(max(0, float(df_clean["surface_reelle_bati"].min() or 0)))
+        s_max = int(float(df_clean["surface_reelle_bati"].quantile(0.99)))
+    else:
+        s_min, s_max = 0, 200
+
+    types = sorted(df_clean["type_local"].dropna().astype(str).unique()) if "type_local" in df_clean.columns else []
+    arr_all = sorted([int(a) for a in df_clean["arrondissement"].dropna().unique()]) if "arrondissement" in df_clean.columns else []
+
+    if st.button("↺ Réinitialiser les filtres"):
+        for k in ("flt_years", "flt_types", "flt_arr", "flt_surface", "show_map", "map_sample"):
+            if k in st.session_state:
+                del st.session_state[k]
+
+    year_range = st.slider(
+        "Période (années)", ymin, ymax, value=(ymin, ymax), step=1, key="flt_years",
+        help="Années inclusives de la sélection."
+    )
+    type_sel = st.multiselect(
+        "Type de bien", options=types, default=types, key="flt_types",
+        help="Appartement et/ou Maison."
+    )
+    arr_sel = st.multiselect(
+        "Arrondissements (01–20)", options=arr_all, default=arr_all, key="flt_arr",
+        help="Filtre géographique intra-muros."
+    )
+    surface_range = st.slider(
+        "Surface bâtie (m²)", s_min, s_max, value=(max(9, s_min), s_max), step=1, key="flt_surface",
+        help="Exclut les biens hors plage sélectionnée."
+    )
+
+    st.divider()
+    st.subheader("Carte (optionnel)")
+    st.checkbox("Afficher la carte (échantillon)", value=False, key="show_map")
+    st.slider("Taille échantillon carte", 2000, 20000, 5000, 1000, key="map_sample")
+
+# ---------- Application des filtres globaux ----------
+df_sel = df_clean.copy()
+df_sel = df_sel[(df_sel["annee"] >= year_range[0]) & (df_sel["annee"] <= year_range[1])]
+
+if type_sel and "type_local" in df_sel.columns:
+    df_sel = df_sel[df_sel["type_local"].isin(type_sel)]
+
+if "arrondissement" in df_sel.columns and arr_sel:
+    df_sel = df_sel[df_sel["arrondissement"].isin(arr_sel)]
+
+if "surface_reelle_bati" in df_sel.columns:
+    df_sel = df_sel[
+        (df_sel["surface_reelle_bati"] >= float(surface_range[0])) &
+        (df_sel["surface_reelle_bati"] <= float(surface_range[1]))
+    ]
+
+# ---------- Tabs ----------
 tab_intro, tab_overview, tab_debug = st.tabs(["Intro", "Overview", "Debug"])
 
 with tab_intro:
     render_intro()
 
 with tab_overview:
-    render_overview()
+    if df_sel.empty:
+        st.warning("Aucune donnée pour ces filtres. Élargis la période, les types ou les arrondissements.")
+    else:
+        # on lit directement les paramètres de la sidebar dans overview via st.session_state
+        render_overview(df_sel)
 
 with tab_debug:
     render_debug(df_clean)
 
-
-# Footer
-
+# ---------- Footer : Source & Licence ----------
 st.markdown("---")
 st.markdown(
     """
@@ -72,7 +116,7 @@ st.markdown(
       <b>Source & licence.</b>
       Données <i>Demandes de valeurs foncières (DVF) géolocalisées – Paris (75)</i> :
       <a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/" target="_blank">page dataset sur data.gouv.fr</a>.<br/>
-      Réutilisation conforme à la <i>Licence Ouverte 2.0 / Etalab</i>
+      Réutilisation conforme à la <i>Licence Ouverte / Etalab</i> — mention de paternité&nbsp;: DGFiP, Etalab.
     </div>
     """,
     unsafe_allow_html=True,
