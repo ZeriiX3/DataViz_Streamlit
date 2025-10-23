@@ -162,16 +162,15 @@ def render(df: pd.DataFrame):
         st.info("Colonnes nécessaires absentes pour le classement par arrondissement.")
 
     # -----------------------
-    # CARTE (optionnelle)
+    # CARTE — Toujours affichée si possible
     # -----------------------
-    show_map = st.session_state.get("show_map", False)
-    sample_size = int(st.session_state.get("map_sample", 5000))
-
-    if show_map and pdk is not None and {"latitude", "longitude"}.issubset(df.columns):
+    if pdk is not None and {"latitude", "longitude"}.issubset(df.columns):
         df_geo = df.dropna(subset=["latitude", "longitude"]).copy()
         df_geo["lat"] = pd.to_numeric(df_geo["latitude"], errors="coerce")
         df_geo["lon"] = pd.to_numeric(df_geo["longitude"], errors="coerce")
         df_geo = df_geo.dropna(subset=["lat", "lon"])
+        # échantillon fixe pour garder de bonnes perfs
+        sample_size = 6000
         if len(df_geo) > sample_size:
             df_geo = df_geo.sample(sample_size, random_state=42)
 
@@ -188,7 +187,7 @@ def render(df: pd.DataFrame):
         view_state = pdk.ViewState(latitude=midpoint[0], longitude=midpoint[1], zoom=10.5, bearing=0, pitch=0)
         st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "€/m²: {prix_m2}"}))
         st.caption("Alt text: carte des transactions (échantillon) positionnées par latitude/longitude.")
-    elif show_map and pdk is None:
+    elif pdk is None:
         st.info("pydeck non disponible. Ajoute `pydeck` à requirements.txt pour activer la carte.")
 
     # -----------------------
