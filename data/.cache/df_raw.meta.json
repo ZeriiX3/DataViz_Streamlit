@@ -1,0 +1,36 @@
+{
+  "created_at": 1761239869,
+  "parquet_path": "data\\.cache\\df_raw.parquet",
+  "signature": {
+    "count": 5,
+    "files": [
+      {
+        "mtime": 1760628185,
+        "name": "75_2020.csv",
+        "size": 10546776
+      },
+      {
+        "mtime": 1760628185,
+        "name": "75_2021.csv",
+        "size": 15603148
+      },
+      {
+        "mtime": 1760628185,
+        "name": "75_2022.csv",
+        "size": 18799509
+      },
+      {
+        "mtime": 1760628185,
+        "name": "75_2023.csv",
+        "size": 15435670
+      },
+      {
+        "mtime": 1760628186,
+        "name": "75_2024.csv",
+        "size": 14211088
+      }
+    ],
+    "pattern": "75_*.csv",
+    "total_size": 74596191
+  }
+}
