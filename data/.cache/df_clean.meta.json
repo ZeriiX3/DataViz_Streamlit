@@ -1,27 +1,4 @@
 {
-  "rows": 107208,
-  "cols": 21,
-  "columns": [
-    "id_mutation",
-    "date_mutation",
-    "annee",
-    "trimestre",
-    "nature_mutation",
-    "is_vente_std",
-    "is_vefa",
-    "is_terrain",
-    "type_local",
-    "valeur_fonciere",
-    "surface_reelle_bati",
-    "prix_m2",
-    "nombre_pieces_principales",
-    "classe_pieces",
-    "classe_surface_m2",
-    "code_postal",
-    "arrondissement",
-    "nom_commune",
-    "adresse_nom_voie",
-    "longitude",
-    "latitude"
-  ]
+  "rows": 106496,
+  "cols": 18
 }

@@ -5,6 +5,7 @@ import re
 import csv
 import json
 import time
+import streamlit as st
 
 # ---------- helpers ----------
 def _snake(s: str) -> str:
@@ -21,103 +22,74 @@ def _coerce_numeric(series: pd.Series) -> pd.Series:
     s = s.str.replace(",", ".", regex=False)          # virgule -> point
     return pd.to_numeric(s, errors="coerce")
 
-# ---------- caching utils (parquet + signature des CSV) ----------
-def _cache_paths(data_dir: Path):
-    cache_dir = data_dir / ".cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    parquet_path = cache_dir / "df_raw.parquet"
-    meta_path = cache_dir / "df_raw.meta.json"
-    return parquet_path, meta_path
-
-def _dir_signature(data_dir: Path, pattern: str = "75_*.csv") -> dict:
+# ---------- signature dossier (pour invalider les caches) ----------
+def dir_signature(data_dir: str | Path, pattern: str = "75_*.csv") -> str:
+    """
+    Retourne une signature JSON (str) basée sur la liste des fichiers, leur taille et mtime.
+    Si un CSV change/ajout/suppression -> la signature change.
+    """
+    data_dir = Path(data_dir)
     files = sorted(data_dir.glob(pattern))
-    sig = {
+    payload = {
         "pattern": pattern,
         "files": [
-            {
-                "name": f.name,
-                "size": f.stat().st_size,
-                "mtime": int(f.stat().st_mtime),
-            }
+            {"name": f.name, "size": f.stat().st_size, "mtime": int(f.stat().st_mtime)}
             for f in files
         ],
         "count": len(files),
-        "total_size": sum(f.stat().st_size for f in files),
+        "total_size": sum((f.stat().st_size for f in files), 0),
     }
-    return sig
+    return json.dumps(payload, sort_keys=True)
 
-def _same_signature(a: dict, b: dict) -> bool:
-    return json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+# ---------- parquet cache local ----------
+def _cache_paths(data_dir: Path):
+    cache_dir = data_dir / ".cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / "df_raw.parquet", cache_dir / "df_raw.meta.json"
 
 # ---------- core readers ----------
 def _read_one_csv(path: Path) -> pd.DataFrame:
-    """
-    Lecture robuste DVF avec auto-détection du séparateur et de l'encodage.
-    1) Tentative auto (sep=None, engine='python', utf-8-sig)
-    2) Fallbacks explicites sur encodages et séparateurs.
-    """
-    # 1) Auto (IMPORTANT: ne PAS passer low_memory avec engine='python')
+    """Lecture robuste DVF avec auto-détection, avec fallbacks."""
     try:
         df = pd.read_csv(
-            path,
-            sep=None,               # auto-detec (python engine)
-            engine="python",
-            dtype=str,
-            encoding="utf-8-sig",
+            path, sep=None, engine="python", dtype=str, encoding="utf-8-sig",
             quoting=csv.QUOTE_MINIMAL,
         )
     except Exception:
         df = None
 
-    # 2) Si échec ou 1 seule colonne -> fallbacks
     if df is None or df.shape[1] == 1:
-        encodings = ["utf-8-sig", "utf-8", "latin1"]
-        seps = [";", ",", "\t"]
-        read_ok = False
-        for enc in encodings:
-            for sep in seps:
+        for enc in ["utf-8-sig", "utf-8", "latin1"]:
+            for sep in [";", ",", "\t"]:
                 try:
-                    df_try = pd.read_csv(
-                        path,
-                        sep=sep,
-                        dtype=str,
-                        encoding=enc,
-                        # ici on peut remettre low_memory pour C engine
-                        low_memory=False,
-                    )
+                    df_try = pd.read_csv(path, sep=sep, dtype=str, encoding=enc, low_memory=False)
                     if df_try.shape[1] > 1:
                         df = df_try
-                        read_ok = True
                         break
                 except Exception:
                     continue
-            if read_ok:
+            if df is not None and df.shape[1] > 1:
                 break
-        if not read_ok:
-            # Dernière chance : relire sans options pour remonter une erreur lisible
+        if df is None:
             df = pd.read_csv(path)
 
-    # ---------- standardisation colonnes ----------
     df.columns = [_snake(c) for c in df.columns]
 
-    # ---------- dates & année ----------
     if "date_mutation" in df.columns:
         df["date_mutation"] = pd.to_datetime(df["date_mutation"], errors="coerce")
         df["annee"] = df["date_mutation"].dt.year
 
-    # ---------- filtre Paris (si colonne dispo) ----------
     if "code_departement" in df.columns:
         df["code_departement"] = df["code_departement"].astype(str).str.strip()
         df = df[df["code_departement"] == "75"]
 
-    # ---------- coercions numériques usuelles ----------
     for col in ["valeur_fonciere", "surface_reelle_bati", "nombre_pieces_principales", "surface_terrain"]:
         if col in df.columns:
             df[col] = _coerce_numeric(df[col])
 
     return df
 
-# ---------- public API ----------
+# ---------- build df_raw (avec contrôle de signature parquet) ----------
 def load_data(
     data_dir: str | Path = "data",
     pattern: str = "75_*.csv",
@@ -125,35 +97,27 @@ def load_data(
     force_rebuild: bool = False,
 ) -> pd.DataFrame:
     """
-    Charge tous les CSV DVF Paris (pattern ex: 75_*.csv) depuis `data_dir`,
-    concatène et renvoie un df brut standardisé (df_raw).
-
-    Accélération :
-      - Si `use_parquet_cache=True`, lit/écrit un cache Parquet (.cache/df_raw.parquet)
-        + un fichier méta avec la "signature" des CSV (noms, tailles, mtimes).
-      - Si la signature est identique, on lit directement le Parquet.
-      - `force_rebuild=True` ignore le cache et reconstruit depuis les CSV.
+    Charge tous les CSV DVF (pattern) depuis `data_dir` et renvoie df_raw standardisé.
+    Si `use_parquet_cache=True`, on lit le parquet **uniquement** si la signature .meta.json
+    correspond à la signature courante du dossier. Sinon on reconstruit depuis CSV.
     """
     data_dir = Path(data_dir)
     parquet_path, meta_path = _cache_paths(data_dir)
-    current_sig = _dir_signature(data_dir, pattern=pattern)
+    current_sig = json.loads(dir_signature(data_dir, pattern))
 
-    # --- Fast path: lire le cache si signature identique (et pas force)
-    if (
-        use_parquet_cache
-        and not force_rebuild
-        and parquet_path.exists()
-        and meta_path.exists()
-    ):
+    # Lecture rapide via parquet si signature OK et pas force_rebuild
+    if use_parquet_cache and not force_rebuild and parquet_path.exists() and meta_path.exists():
         try:
-            with open(meta_path, "r", encoding="utf-8") as f:
-                old_meta = json.load(f)
-            if _same_signature(old_meta.get("signature", {}), current_sig):
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            cached_sig = meta.get("signature", None)
+            if cached_sig == current_sig:
                 return pd.read_parquet(parquet_path)
+            # sinon: signature mismatch -> on reconstruit plus bas
         except Exception:
-            pass  # si erreur de lecture cache -> on reconstruit
+            # meta illisible -> on reconstruit
+            pass
 
-    # --- Reconstruire depuis les CSV
+    # Reconstruire depuis les CSV (signature mismatch, force, ou pas de cache)
     files = sorted(data_dir.glob(pattern))
     if not files:
         raise FileNotFoundError(f"Aucun fichier trouvé dans {data_dir} (pattern {pattern}).")
@@ -165,24 +129,39 @@ def load_data(
     preferred = [
         "annee", "date_mutation", "nature_mutation", "valeur_fonciere",
         "type_local", "nombre_pieces_principales", "surface_reelle_bati",
-        "adresse_nom_voie", "code_postal", "nom_commune", "longitude", "latitude"
+        "adresse_nom_voie", "code_postal", "nom_commune", "longitude", "latitude",
     ]
     cols = [c for c in preferred if c in df_raw.columns] + [c for c in df_raw.columns if c not in preferred]
     df_raw = df_raw[cols]
 
-    # --- Écrire le cache parquet + méta (si activé)
+    # Écrit le cache parquet + meta **avec la signature courante**
     if use_parquet_cache:
         try:
-            df_raw.to_parquet(parquet_path, index=False)  # nécessite pyarrow ou fastparquet
+            df_raw.to_parquet(parquet_path, index=False)
             meta = {
                 "created_at": int(time.time()),
-                "signature": current_sig,
-                "parquet_path": str(parquet_path),
+                "signature": current_sig,  # on stocke l'objet (dict)
             }
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(meta, f, ensure_ascii=False, indent=2, sort_keys=True)
+            meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:
-            # Si l'écriture du cache échoue, on continue sans interrompre la lecture
+            # si l'écriture du cache échoue, on n'empêche pas l'app de tourner
             pass
 
     return df_raw
+
+# ---------- wrapper caché Streamlit ----------
+@st.cache_data(show_spinner=False)
+def load_data_cached(
+    signature: str,
+    data_dir: str = "data",
+    pattern: str = "75_*.csv",
+    use_parquet_cache: bool = True,
+    force_rebuild: bool = False,
+) -> pd.DataFrame:
+    """
+    Version cachée de load_data().
+    Le paramètre 'signature' (cf. dir_signature) force l'invalidation du cache Streamlit
+    si les CSV changent.
+    """
+    return load_data(data_dir=data_dir, pattern=pattern,
+                     use_parquet_cache=use_parquet_cache, force_rebuild=force_rebuild)
