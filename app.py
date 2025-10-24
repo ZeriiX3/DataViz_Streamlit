@@ -133,7 +133,7 @@ with tab_overview:
     if df_sel.empty:
         st.warning("Aucune donnée pour ces filtres. Élargis la période, les types ou les arrondissements.")
     else:
-        render_overview(df_sel)     # KPIs & visuels branchés sur la sélection
+        render_overview(df_sel)     # KPIs & visuels selon le filtrage
 
 with tab_debug:
     render_debug(df_clean)          # debug global sur le clean non filtré
@@ -146,7 +146,7 @@ st.markdown(
       <b>Source & licence.</b>
       Données <i>Demandes de valeurs foncières (DVF) géolocalisées – Paris (75)</i> :
       <a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/" target="_blank">page dataset sur data.gouv.fr</a>.<br/>
-      Réutilisation conforme à la <i>Licence Ouverte / Etalab</i> — mention de paternité&nbsp;: DGFiP, Etalab.
+      Réutilisation conforme à la <i>Licence Ouverte 2.0 / Etalab</i>
     </div>
     """,
     unsafe_allow_html=True,

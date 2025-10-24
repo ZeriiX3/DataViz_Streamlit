@@ -29,8 +29,10 @@ def render(df: pd.DataFrame):
     st.header("🔎 Overview")
 
     # -----------------------
-    # KPIs 
+    # 0) KPIs — photo de la sélection
     # -----------------------
+    st.subheader("KPIs")
+
     small_mask = df["classe_surface_m2"].astype(str).isin(["<25", "25–40"]) if "classe_surface_m2" in df.columns else pd.Series(False, index=df.index)
     prix_m2_med = float(np.nanmedian(df["prix_m2"])) if "prix_m2" in df.columns else np.nan
     vol = int(len(df))
@@ -50,11 +52,25 @@ def render(df: pd.DataFrame):
     with c5:
         _kpi(pieces_med, "Pièces médianes", fmt="{:.0f}")
 
-    st.caption("KPIs calculés selon le filtre.")
+    st.markdown(
+        """
+**Comment lire ces KPIs ?**  
+Ils donnent la **photo instantanée de ta sélection** (filtres à gauche) : niveau de **prix**, **activité**, **mix** (part des petites surfaces),
+**taille** et **pièces**.
+
+**À observer**
+- Si le prix médian **2024 < 2020**, le **cycle baissier** est installé.
+- Si la part ≤ 40 m² **monte**, on voit des **contraintes de budget**.
+- Compare **Appartements / Maisons** ou **arrondissements** pour repérer les écarts.
+
+> Ces indicateurs réagissent à chaque filtre et posent le **contexte** pour les graphes ci-dessous.
+"""
+    )
 
     # -----------------------
-    # VISUEL 1 - Prix médian au m² (trimestriel)
+    # 1) Trajectoire du prix médian (trimestriel)
     # -----------------------
+    st.subheader("1) Trajectoire du prix médian (trimestriel)")
     if {"prix_m2", "trimestre"}.issubset(df.columns):
         g_prix = (
             _ensure_period_index(df)
@@ -65,7 +81,7 @@ def render(df: pd.DataFrame):
             .sort_values("tri_date")
         )
         chart = (
-            alt.Chart(g_prix, title="Prix médian au m²")
+            alt.Chart(g_prix, title="Prix médian au m² — trimestriel")
             .mark_line(point=True)
             .encode(
                 x=alt.X("tri_date:T", title="Trimestre"),
@@ -74,13 +90,25 @@ def render(df: pd.DataFrame):
             )
         )
         st.altair_chart(chart, theme="streamlit", use_container_width=True)
-        st.caption("Courbe trimestrielle du prix médian au m².")
+        st.markdown(
+            """
+Chaque point correspond à la **médiane €/m² par trimestre**.
+
+**À observer**
+- **Avant / après 2021** : le **palier** puis la **bascule** éventuelle.
+- **2023-2024** : confirme-t-on un **refroidissement** ?
+- Filtre par **type** ou **arrondissement** pour voir **qui résiste** (courbe plus plate) et **qui décroche**.
+
+> Ce graphe raconte le **cycle des prix** : s'il baisse alors que la part ≤ 40 m² monte, on a un **recentrage** du marché.
+"""
+        )
     else:
-        st.info("Colonnes nécessaires absentes pour la trajectoire trimestrielle (prix_m2, trimestre).")
+        st.info("Colonnes nécessaires absentes pour la trajectoire (prix_m2, trimestre).")
 
     # -----------------------
-    # VISUEL 2 - Transactions par trimestre
+    # 2) Volumes de transactions (trimestriel)
     # -----------------------
+    st.subheader("2) Volumes de transactions (trimestriel)")
     if "trimestre" in df.columns:
         base_group_col = "id_mutation" if "id_mutation" in df.columns else "date_mutation"
         g_vol = (
@@ -96,18 +124,30 @@ def render(df: pd.DataFrame):
             .mark_bar()
             .encode(
                 x=alt.X("tri_date:T", title="Trimestre"),
-                y=alt.Y("volume:Q", title="Transactions"),
+                y=alt.Y("volume:Q", title="Transactions (#)"),
                 tooltip=["trimestre", "volume"],
             )
         )
         st.altair_chart(chart, theme="streamlit", use_container_width=True)
-        st.caption("Histogramme trimestriel des transactions.")
+        st.markdown(
+            """
+Chaque barre = **nombre de ventes** au trimestre.
+
+**À observer**
+- **Creux 2023–2024** → marché **moins liquide** (taux, financement, attentisme).
+- **Rebond** dans certains filtres (ex. **petites surfaces**) = poches de **demande**.
+- Croise avec le **prix** : volumes qui repartent pendant que les prix reculent → **ré-ajustement** en cours.
+
+> Les volumes mesurent la **liquidité** : un marché actif mais moins cher ≠ un marché bloqué.
+"""
+        )
     else:
         st.info("Colonne 'trimestre' absente pour le volume trimestriel.")
 
     # -----------------------
-    # VISUEL 3 — Part des petites surfaces (≤ 40 m²)
+    # 3) Part des petites surfaces (≤ 40 m²)
     # -----------------------
+    st.subheader("3) Part des petites surfaces (≤ 40 m²)")
     if {"classe_surface_m2", "trimestre"}.issubset(df.columns):
         df_part = _ensure_period_index(df).dropna(subset=["tri_date"]).copy()
         df_part["is_small"] = df_part["classe_surface_m2"].astype(str).isin(["<25", "25–40"])
@@ -118,7 +158,7 @@ def render(df: pd.DataFrame):
             .sort_values("tri_date")
         )
         chart = (
-            alt.Chart(g_part, title="Part des petites surfaces (≤ 40 m²)")
+            alt.Chart(g_part, title="Part des petites surfaces (≤ 40 m²) — trimestriel")
             .mark_line(point=True)
             .encode(
                 x=alt.X("tri_date:T", title="Trimestre"),
@@ -127,13 +167,25 @@ def render(df: pd.DataFrame):
             )
         )
         st.altair_chart(chart, theme="streamlit", use_container_width=True)
-        st.caption("Courbe de la part des petites surfaces par trimestre.")
+        st.markdown(
+            """
+La courbe montre la **proportion** de ventes ≤ **40 m²**.
+
+**À observer**
+- **Hausse** après 2021 → **arbitrage d’espace** (budgets contraints, primo-accédants).
+- **Baisse** dans certains arrondissements → retour de biens plus grands / segment haut.
+- Compare **Appartements/Maisons** pour séparer **effet mix** et **prix**.
+
+> Avec la trajectoire des prix, ça permet de dire si le marché **se recentre** ou **se polarise**.
+"""
+        )
     else:
         st.info("Colonnes nécessaires absentes pour la part des petites surfaces.")
 
     # -----------------------
-    # VISUEL 4 — Classement arrondissements (prix médian)
+    # 4) Classement des arrondissements (médiane €/m²)
     # -----------------------
+    st.subheader("4) Classement des arrondissements (médiane €/m²)")
     if {"arrondissement", "prix_m2"}.issubset(df.columns) and not df["arrondissement"].isna().all():
         g_arr = (
             df.dropna(subset=["arrondissement"])
@@ -157,14 +209,25 @@ def render(df: pd.DataFrame):
             )
         )
         st.altair_chart(chart, theme="streamlit", use_container_width=True)
-        st.caption("Barres horizontales du top N des arrondissements. Utilisez la barre pour changer le Top.")
+        st.markdown(
+            """
+Classement par **médiane €/m²** sur la sélection.
+
+**À observer**
+- Le **gradient intra-Paris** (ouest/centre vs nord/est).
+- Filtres par **période** : certains arrondissements **décrochent** plus que d’autres.
+- Regarde aussi le **# ventes** (tooltip) : un rang élevé mais peu de ventes = **niche**.
+
+> Ce classement localise où le **niveau** est le plus tendu, à confronter avec la **carte**.
+"""
+        )
     else:
         st.info("Colonnes nécessaires absentes pour le classement par arrondissement.")
 
-    
     # -----------------------
-    # CARTE
+    # 5) Carte des transactions (couleur = quantile de prix/m²)
     # -----------------------
+    st.subheader("5) Carte des transactions (couleur = quantile de prix/m²)")
     if pdk is not None and {"latitude", "longitude", "prix_m2"}.issubset(df.columns):
         df_geo = df.dropna(subset=["latitude", "longitude", "prix_m2"]).copy()
         df_geo["lat"] = pd.to_numeric(df_geo["latitude"], errors="coerce")
@@ -172,7 +235,6 @@ def render(df: pd.DataFrame):
         df_geo["prix_m2"] = pd.to_numeric(df_geo["prix_m2"], errors="coerce")
         df_geo = df_geo.dropna(subset=["lat", "lon", "prix_m2"])
 
-        # si aucun point après filtres erreur
         if df_geo.empty:
             st.info("Aucun point géolocalisé dans la sélection actuelle (ou colonnes lat/lon/prix manquantes).")
         else:
@@ -181,7 +243,7 @@ def render(df: pd.DataFrame):
             if len(df_geo) > sample_size:
                 df_geo = df_geo.sample(sample_size, random_state=42)
 
-            
+            # binning prix -> quantiles
             if len(df_geo) >= 5:
                 qs = df_geo["prix_m2"].quantile([0.2, 0.4, 0.6, 0.8]).values
                 bins = [-np.inf, qs[0], qs[1], qs[2], qs[3], np.inf]
@@ -206,15 +268,13 @@ def render(df: pd.DataFrame):
 
             df_geo["prix_m2_bin"] = pd.cut(df_geo["prix_m2"], bins=bins, labels=labels, include_lowest=True)
 
-            # Palette
             palette = {
-                labels[0]: (33, 158, 188),   # bleu
-                labels[1]: (67, 170, 139),   # vert
-                labels[2]: (253, 210, 97),   # jaune
-                labels[3]: (244, 96, 54),    # orange/rouge
-                labels[4]: (157, 0, 57),     # bordeaux
+                labels[0]: (33, 158, 188),
+                labels[1]: (67, 170, 139),
+                labels[2]: (253, 210, 97),
+                labels[3]: (244, 96, 54),
+                labels[4]: (157, 0, 57),
             }
-
             cols = df_geo["prix_m2_bin"].astype("string").map(palette)
             df_geo["r"] = cols.apply(lambda c: c[0] if isinstance(c, tuple) else 200)
             df_geo["g"] = cols.apply(lambda c: c[1] if isinstance(c, tuple) else 200)
@@ -227,15 +287,14 @@ def render(df: pd.DataFrame):
                 data=df_geo,
                 get_position="[lon, lat]",
                 get_fill_color="[r, g, b, 170]",
-                get_radius=8,              # base
-                radius_units="pixels",     
+                get_radius=8,                 # pixels 
+                radius_units="pixels",
                 radius_min_pixels=3,
                 radius_max_pixels=28,
                 pickable=True,
                 auto_highlight=True,
                 stroked=False,
             )
-
             view_state = pdk.ViewState(latitude=midpoint[0], longitude=midpoint[1], zoom=10.5, bearing=0, pitch=0)
             st.pydeck_chart(
                 pdk.Deck(
@@ -245,7 +304,6 @@ def render(df: pd.DataFrame):
                 )
             )
 
-            # Légende
             legend_items = "".join(
                 f'<div style="display:flex;align-items:center;margin-right:10px;">'
                 f'<span style="display:inline-block;width:12px;height:12px;border-radius:50%;'
@@ -262,30 +320,25 @@ def render(df: pd.DataFrame):
                 """,
                 unsafe_allow_html=True,
             )
-            st.caption("Carte des transactions colorées par quantiles de prix au m². On échantillone au plus 6000 points, pour la visibilité.")
+            st.markdown(
+                """
+Chaque point est une transaction DVF sur **2020–2024** (selon ta sélection).  
+La couleur va du **bleu** (les moins chers de la sélection) au **bordeaux** (les plus chers).
+
+**À observer**
+- La **couronne périphérique** concentre davantage de bleus/verts (prix plus bas).
+- Le **centre et l’ouest** (6e, 7e, 8e, 16e) tirent vers l’orange/bordeaux (prix élevés).
+- En changeant la **période**, vois si la dispersion se **renforce** ou se **resserre** après 2021.
+
+> La carte sert de **contexte géographique** au reste du tableau : zones de **cherté** et **répartition** des ventes.
+"""
+            )
     elif pdk is None:
-        st.info("pydeck non disponible. Installez `pydeck` pour activer la carte.")
-
-
-    st.markdown(
-        """
-    Chaque point est une transaction DVF sur 2020-2024 (selon le filtre).  
-    La couleur va du bleu (les moins chers dans la sélection) au bordeaux (les plus chers).  
-
-    **A observer**  
-    - La **couronne périphérique** concentre davantage de points bleus/verts (prix plus bas).  
-    - Le **centre et l'ouest** (6e, 7e, 8e, 16e) tirent vers l'orange/bordeaux (prix élevés).  
-    - En changeant la **période**, on voit si la dispersion se **renforce** ou se **resserre** après 2021.
-
-    > La carte sert de **contexte géographique** au reste du tableau de bord (KPIs/trajectoires) :  
-    > on visualise les **zones de cherté** et la **répartition** des transactions dans la sélection.
-    """
-    )
-
-
+        st.info("pydeck non disponible. Installe `pydeck` pour activer la carte.")
 
     # -----------------------
-    # Échantillon de la sélection
+    # 6) Échantillon de la sélection
     # -----------------------
-    with st.expander("Voir un échantillon de la sélection"):
+    st.subheader("6) Échantillon de la sélection")
+    with st.expander("Voir un échantillon (50 premières lignes)"):
         st.dataframe(df.head(50), width="stretch")
