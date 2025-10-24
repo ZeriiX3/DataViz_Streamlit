@@ -1,5 +1,5 @@
 # sections/deep_dives.py
-# comparisons, distributions, drilldowns — version optimisée (pas de lag)
+# Deep Dives — P1 vs P2 (sans boxplot, perf optimisée, explications détaillées)
 
 import streamlit as st
 import pandas as pd
@@ -31,19 +31,21 @@ def _needs(cols: set[str], df: pd.DataFrame) -> bool:
 
 # ---------- Page ----------
 def render(df: pd.DataFrame):
-    st.header("🧭 Deep Dives")
+    st.header("🧭 Deep Dives — P1 vs P2")
     st.caption(
-        "Comparaisons **P1 vs P2** pour expliquer le basculement post-Covid : variations par arrondissement, "
-        "distributions de prix/m² et mix (surfaces, pièces). Version optimisée pour rester fluide."
+        "Alt text : cette section compare **deux périodes** (P1 et P2) pour expliquer le basculement post-Covid : "
+        "variations par arrondissement, répartitions de prix/m² et mix (surfaces, pièces). "
+        "Elle utilise uniquement les filtres **globaux** (sidebar)."
     )
 
-    # Sélecteurs de périodes
+    # Sélecteurs des deux périodes UNIQUEMENT
     years = df["annee"].dropna().astype(int)
     if years.empty:
         st.warning("Aucune année disponible dans la sélection.")
         return
     y_min, y_max = int(years.min()), int(years.max())
-    c1, c2 = st.columns([1, 1])
+
+    c1, c2 = st.columns(2)
     with c1:
         p1 = st.slider("Période 1 (P1)", y_min, y_max, (max(y_min, 2020), min(y_max, 2021)), step=1)
     with c2:
@@ -62,7 +64,8 @@ def render(df: pd.DataFrame):
 
     # ================= 1) Dumbbell par arrondissement =================
     st.subheader("1) Arrondissements — Médiane €/m² (P1 vs P2)")
-    st.caption("Alt text : pour chaque arrondissement, une ligne relie la médiane P1 à la médiane P2 ; sa longueur = variation.")
+    st.caption("Alt text : pour chaque arrondissement, une ligne relie la médiane P1 (bleu) à la médiane P2 (rose) ; "
+               "la couleur de la ligne indique la direction (rouge = hausse, vert = baisse).")
 
     if _needs({"arrondissement", "prix_m2"}, d2) and not d2["arrondissement"].isna().all():
         grp = (
@@ -74,12 +77,9 @@ def render(df: pd.DataFrame):
         piv = piv.loc[piv["P1"].notna() & piv["P2"].notna()].copy()
         if not piv.empty:
             piv["delta"] = piv["P2"] - piv["P1"]
-            max_n = min(20, len(piv))
-            topn = st.slider("Top N par |variation|", 8, max_n, min(15, max_n), step=1)
-            piv_top = piv.reindex(piv["delta"].abs().sort_values(ascending=False).head(topn).index)
-            piv_top = piv_top.sort_values("P2")
+            piv = piv.sort_values("P2")  # ordre lisible
 
-            base = alt.Chart(piv_top).encode(y=alt.Y("arrondissement:O", title="Arr.", sort=None))
+            base = alt.Chart(piv).encode(y=alt.Y("arrondissement:O", title="Arr.", sort=None))
             lines = base.mark_rule().encode(
                 x=alt.X("P1:Q", title="€/m² (médiane)"),
                 x2="P2:Q",
@@ -93,16 +93,18 @@ def render(df: pd.DataFrame):
             )
             p1_pts = base.mark_point(filled=True, size=60, color="#60a5fa").encode(x="P1:Q")
             p2_pts = base.mark_point(filled=True, size=60, color="#fb7185").encode(x="P2:Q")
-            st.altair_chart((lines + p1_pts + p2_pts).properties(height=28 * len(piv_top), title="Dumbbell P1 ↔ P2"),
-                            use_container_width=True)
+            st.altair_chart(
+                (lines + p1_pts + p2_pts).properties(height=max(400, 22 * len(piv)), title="Dumbbell P1 ↔ P2"),
+                use_container_width=True
+            )
 
             st.markdown(
                 f"""
-**Lecture / Storytelling.**  
-- **Rouge** = P2 > P1 (médiane en hausse), **Vert** = P2 < P1 (repli).  
-- La **longueur** de la ligne = **amplitude** de la variation.  
-- Compare **P1 {p1[0]}–{p1[1]}** vs **P2 {p2[0]}–{p2[1]}** : tu vois **où** ça descend/monte le plus.  
-- À croiser avec les **volumes** (Overview) pour savoir si ces variations se font en **marché liquide** ou **faible**.
+**Ce que ça raconte (storytelling).**  
+- Lis **où** la médiane **baisse** (**vert**) ou **monte** (**rouge**) entre **P1 {p1[0]}–{p1[1]}** et **P2 {p2[0]}–{p2[1]}**.  
+- La **longueur** de la ligne = **ampleur** de la variation → met en avant les arrondissements qui **décrochent** ou **résistent**.  
+- **À croiser** avec l’Overview (volumes) : un arrondissement en **baisse** avec des **volumes faibles** = ajustement sous faible liquidité ; 
+  s’il **baisse** mais reste **liquide**, le mouvement est plus **structuré**.
 """
             )
     else:
@@ -111,11 +113,13 @@ def render(df: pd.DataFrame):
     st.divider()
 
     # ================= 2) Distribution prix/m² (pré-agrégée pandas) =================
-    st.subheader("2) Distribution du prix au m² — P1 vs P2")
+    st.subheader("2) Répartition du prix au m² — P1 vs P2 (histogrammes normalisés)")
+    st.caption("Alt text : barres par classes de prix ; les hauteurs sont des parts (%) par période.")
+
     if _needs({"prix_m2"}, d2):
         d_price = d2.dropna(subset=["prix_m2", "periode2"]).copy()
 
-        # Fenêtre d'affichage robuste
+        # Fenêtre d'affichage robuste (trim doux)
         lo, hi = d_price["prix_m2"].quantile([0.01, 0.99]).tolist()
         d_price = d_price[(d_price["prix_m2"] >= lo) & (d_price["prix_m2"] <= hi)]
 
@@ -123,44 +127,35 @@ def render(df: pd.DataFrame):
         nbins = 40
         edges = np.linspace(lo, hi, nbins + 1)
         d_price["bin"] = pd.cut(d_price["prix_m2"], bins=edges, include_lowest=True)
-        # Comptes & normalisation par période
+
         g = d_price.groupby(["periode2", "bin"], observed=True, as_index=False).size().rename(columns={"size": "n"})
         g["part"] = g.groupby("periode2")["n"].transform(lambda x: x / x.sum())
-        # Ordre lisible des bacs
         bin_order = [str(b) for b in g["bin"].cat.categories]
         g["bin_str"] = g["bin"].astype(str)
 
         chart = (
             alt.Chart(g.dropna(subset=["bin_str"]))
-            .mark_bar(opacity=0.8)
+            .mark_bar(opacity=0.85)
             .encode(
                 x=alt.X("bin_str:N", title="€/m² (classes)", sort=bin_order),
                 y=alt.Y("part:Q", title="Part (%)", axis=alt.Axis(format="%")),
                 color=alt.Color("periode2:N", title="Période"),
-                tooltip=[alt.Tooltip("periode2:N"), alt.Tooltip("bin_str:N", title="Classe"), alt.Tooltip("part:Q", format=".1%")],
+                tooltip=[
+                    alt.Tooltip("periode2:N", title="Période"),
+                    alt.Tooltip("bin_str:N", title="Classe de prix"),
+                    alt.Tooltip("part:Q", format=".1%", title="Part")
+                ],
             )
-            .properties(title="Histogramme normalisé du prix/m²")
+            .properties(title="Histogramme normalisé du prix/m² (P1 vs P2)")
         )
         st.altair_chart(chart, use_container_width=True)
 
-        # Boxplots légers
-        box = (
-            alt.Chart(d_price)
-            .mark_boxplot()
-            .encode(
-                x=alt.X("periode2:N", title="Période"),
-                y=alt.Y("prix_m2:Q", title="€/m²"),
-                color=alt.Color("periode2:N", legend=None),
-            )
-            .properties(title="Boxplots du prix/m²")
-        )
-        st.altair_chart(box, use_container_width=True)
-
         st.markdown(
             """
-**Lecture / Storytelling.**  
-- Les **barres** comparent la **répartition** des transactions par tranches de prix : si P2 se déplace vers la gauche → **recentrage**.  
-- Les **boxplots** comparent **médianes** et **quartiles** : P2 plus bas et plus serré = **refroidissement** du marché.
+**Ce que ça raconte (storytelling).**  
+- Si le profil **P2** se **déplace vers la gauche** (plus de parts dans les classes basses), on a un **recentrage** des transactions.  
+- Un profil **plus plat** ou **plus concentré** en P2 signale respectivement **plus de dispersion** ou un **resserrement** de marché.  
+- À lire avec la **part ≤ 40 m²** (Overview) : un recentrage des prix accompagné d’une **hausse des petites surfaces** renforce le scénario **budget contraint**.
 """
         )
 
@@ -168,6 +163,7 @@ def render(df: pd.DataFrame):
 
     # ================= 3) Mix : surfaces & pièces =================
     st.subheader("3) Mix — Surfaces et pièces (parts par classe)")
+    st.caption("Alt text : deux bar charts comparent P1 et P2 par classes de surfaces et de pièces.")
 
     # Surfaces
     if _needs({"surface_reelle_bati"}, d2):
@@ -190,7 +186,7 @@ def render(df: pd.DataFrame):
                 color=alt.Color("periode2:N", title="Période"),
                 tooltip=["periode2", "bin", alt.Tooltip("part:Q", format=".1%")],
             )
-            .properties(title="Répartition des surfaces")
+            .properties(title="Répartition des surfaces — parts par classe")
         )
         st.altair_chart(chart_s, use_container_width=True)
 
@@ -198,7 +194,10 @@ def render(df: pd.DataFrame):
     if _needs({"nombre_pieces_principales"}, d2):
         d_p = d2.dropna(subset=["nombre_pieces_principales", "periode2"]).copy()
         d_p["nbp"] = pd.to_numeric(d_p["nombre_pieces_principales"], errors="coerce").round().astype("Int64")
-        d_p["classe"] = pd.cut(d_p["nbp"], bins=[0, 1, 2, 3, 4, 100], labels=["T1", "T2", "T3", "T4", "T5+"], include_lowest=True)
+        d_p["classe"] = pd.cut(
+            d_p["nbp"], bins=[0, 1, 2, 3, 4, 100],
+            labels=["T1", "T2", "T3", "T4", "T5+"], include_lowest=True
+        )
         g_p = d_p.groupby(["periode2", "classe"], observed=True, as_index=False).size().rename(columns={"size": "n"})
         g_p["part"] = g_p.groupby("periode2")["n"].transform(lambda x: x / x.sum())
 
@@ -211,15 +210,15 @@ def render(df: pd.DataFrame):
                 color=alt.Color("periode2:N", title="Période"),
                 tooltip=["periode2", "classe", alt.Tooltip("part:Q", format=".1%")],
             )
-            .properties(title="Répartition du nombre de pièces")
+            .properties(title="Répartition du nombre de pièces — parts par classe")
         )
         st.altair_chart(chart_p, use_container_width=True)
 
     st.markdown(
         """
-**Lecture / Storytelling.**  
-- Si la part des **<40 m²** ou des **T1–T2** **augmente** en P2, on observe un **arbitrage d’espace** (contraintes de budget).  
-- Si les **T3+** progressent, la sélection glisse vers des gabarits plus grands (familles/haut de gamme).
+**Ce que ça raconte (storytelling).**  
+- Une **hausse** des parts **<40 m²** ou **T1–T2** en P2 = **arbitrage d’espace** (contraintes de financement / budgets).  
+- Si au contraire les **T3+** progressent, ta sélection glisse vers un **gabarit plus familial** ou des biens plus grands.
 """
     )
 
@@ -227,6 +226,7 @@ def render(df: pd.DataFrame):
 
     # ================= 4) Variations synthétiques =================
     st.subheader("4) Variations synthétiques — médiane, volumes, part ≤ 40 m²")
+    st.caption("Alt text : 3 métriques P1 vs P2 (niveau P2 et Δ par rapport à P1).")
 
     p_med = (
         d2.groupby("periode2", observed=True, as_index=False)
@@ -252,7 +252,7 @@ def render(df: pd.DataFrame):
             st.metric("Prix médian (€/m²)", fmt_eur(row.loc["P2", "prix_m2_median"]),
                       delta=fmt_eur(row.loc["P2", "prix_m2_median"] - row.loc["P1", "prix_m2_median"]))
         with cols[1]:
-            st.metric("Transactions (#)", int(row.loc["P2,","volume"]) if False else int(row.loc["P2", "volume"]),
+            st.metric("Transactions (#)", int(row.loc["P2", "volume"]),
                       delta=int(row.loc["P2", "volume"] - row.loc["P1", "volume"]))
         with cols[2]:
             st.metric("Part ≤ 40 m²", fmt_pct(row.loc["P2", "part_small"]),
@@ -260,11 +260,11 @@ def render(df: pd.DataFrame):
 
         st.markdown(
             f"""
-**Lecture / Storytelling.**  
-- **Prix médian** : confirme l’**inflection** post-2021 si P2 < P1.  
-- **Transactions** : degré de **liquidité** (renormalisation ou creux).  
-- **Part ≤ 40 m²** : signal d’**accessibilité** et d’**arbitrage**.  
-Croise ces deltas avec le **dumbbell** pour voir **où** s’opère le changement.
+**Ce que ça raconte (storytelling).**  
+- **Prix médian** : si **P2 < P1**, on confirme l’**inflection** post-2021.  
+- **Transactions** : le niveau P2 vs P1 renseigne la **liquidité** (renormalisation ou creux).  
+- **Part ≤ 40 m²** : une **hausse** soutient l’idée d’**arbitrage d’espace** et d’**accessibilité**.  
+**Conseil** : rapprocher ces deltas du **dumbbell** pour localiser **où** le changement est le plus marqué.
 """
         )
     else:
