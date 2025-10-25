@@ -1,0 +1,19 @@
+# Core
+python-dateutil>=2.8
+pytz>=2023.3
+numpy>=1.24
+pandas>=2.0
+
+# App
+streamlit>=1.32
+altair>=5.0,<6
+pydeck>=0.8
+
+# Parquet (cache disque)
+pyarrow>=12
+
+# Optionnel (lecture parquet alternative)
+fastparquet>=2023.7.0 ; platform_system!="Darwin"
+
+# Divers
+watchdog>=3.0 ; platform_system!="Windows"
