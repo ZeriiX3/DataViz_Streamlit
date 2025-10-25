@@ -5,6 +5,7 @@ from pathlib import Path
 from sections.intro import render as render_intro
 from sections.overview import render as render_overview
 from sections.deep_dives import render as render_deep_dives
+from sections.conclusions import render as render_conclusions
 
 from utils.io import load_data_cached, dir_signature
 from utils.prep import make_df_clean_cached
@@ -12,12 +13,11 @@ from utils.prep import make_df_clean_cached
 
 # ---------------------- Page config ----------------------
 st.set_page_config(
-    page_title="Paris, un marché en mutation (2020–2024)",
-    page_icon="📊",
+    page_title="Paris, un marché en mutation (2020-2024)",
     layout="wide",
 )
 
-st.title("Paris, un marché en mutation (2020–2024)")
+st.title("Paris, un marché en mutation (2020-2024)")
 st.caption("DVF géolocalisées (data.gouv.fr) — Département 75")
 
 # ---------------------- Chargement données (cache disque + cache mémoire) ----------------------
@@ -28,7 +28,7 @@ df_clean = make_df_clean_cached(df_raw)   # préparation -> df_clean (cache)
 
 # ---------------------- Sidebar ----------------------
 with st.sidebar:
-    st.header("Projet & Données")
+    st.header("Données & Filtres")
 
     # Présence des fichiers attendus (75_2020..75_2024.csv)
     data_dir = Path("data")
@@ -52,9 +52,9 @@ with st.sidebar:
         st.warning(f"{n_found}/{n_expected} fichiers détectés — manquants : {missing}")
 
     st.divider()
-    st.subheader("Filtres (globaux)")
+    st.subheader("Filtres globaux")
 
-    # Bornes calculées sur df_clean (complet)
+    # Bornes calculées sur df_clean 
     years_avail = df_clean["annee"].dropna().astype(int)
     ymin, ymax = int(years_avail.min()), int(years_avail.max())
 
@@ -67,16 +67,16 @@ with st.sidebar:
     types = sorted(df_clean["type_local"].dropna().astype(str).unique()) if "type_local" in df_clean.columns else []
     arr_all = sorted([int(a) for a in df_clean["arrondissement"].dropna().unique()]) if "arrondissement" in df_clean.columns else []
 
-    # Initialisation unique (pas de value=/default= dans les widgets)
+    # Initialisation unique
     st.session_state.setdefault("flt_years",   (ymin, ymax))
     st.session_state.setdefault("flt_types",   list(types))
     st.session_state.setdefault("flt_arr",     list(arr_all))
     st.session_state.setdefault("flt_surface", (max(9, s_min), s_max))
 
-    # Bouton reset : met à jour l'état puis relance
+    # Bouton reset
     if st.button("↺ Réinitialiser les filtres"):
         st.session_state["flt_years"]   = (ymin, ymax)
-        st.session_state["flt_types"]   = list(types)     # ["Appartement","Maison"] si présents
+        st.session_state["flt_types"]   = list(types)     # ["Appartement","Maison"]
         st.session_state["flt_arr"]     = list(arr_all)   # 1..20
         st.session_state["flt_surface"] = (max(9, s_min), s_max)
         st.rerun()
@@ -86,7 +86,7 @@ with st.sidebar:
                            help="Années inclusives de la sélection.")
     type_sel = st.multiselect("Type de bien", options=types, key="flt_types",
                               help="Appartement et/ou Maison.")
-    arr_sel = st.multiselect("Arrondissements (01–20)", options=arr_all, key="flt_arr",
+    arr_sel = st.multiselect("Arrondissements (01-20)", options=arr_all, key="flt_arr",
                              help="Filtre géographique intra-muros.")
     surface_range = st.slider("Surface bâtie (m²)", s_min, s_max, key="flt_surface",
                               help="Exclut les biens hors plage sélectionnée.")
@@ -115,7 +115,7 @@ if "surface_reelle_bati" in df_sel.columns:
 
 
 # ---------------------- Tabs ----------------------
-tab_intro, tab_overview, tab_deep = st.tabs(["Intro", "Overview", "Deep Dives"])
+tab_intro, tab_overview, tab_deep, tab_conclu = st.tabs(["Intro", "Overview", "Deep Dives", "Conclusions"])
 
 with tab_intro:
     render_intro(df_sel)
@@ -130,8 +130,13 @@ with tab_deep:
     if df_sel.empty:
         st.info("Aucune donnée pour ces filtres.")
     else:
-        render_deep_dives(df_sel)  # Q&R : comparaisons P1 vs P2
+        render_deep_dives(df_sel)  # comparaisons P1 vs P2
 
+with tab_conclu:
+    if df_sel.empty:
+        st.info("Aucune donnée pour ces filtres.")
+    else:
+        render_conclusions(df_sel) 
 
 
 # ---------------------- Footer : Source & licence ----------------------

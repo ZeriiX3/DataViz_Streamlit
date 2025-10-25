@@ -119,7 +119,7 @@ def _map_block(df: pd.DataFrame):
     )
 
     st.caption(
-        "Alt text : carte des transactions DVF (échantillon ≤ 6000 points) colorées par quantiles de prix au m². "
+        "Carte des transactions DVF (échantillon <= 6000 points) colorées par quantiles de prix au m². "
         "Chaque point = une mutation ; bleu = moins cher, bordeaux = plus cher."
     )
 
@@ -134,7 +134,7 @@ def _map_block(df: pd.DataFrame):
 
 
 def render(df: pd.DataFrame):
-    # ===== Ton header et ton sous-titre, conservés =====
+    # ===== Header et ton sous-titre =====
     st.header("***Comment le marché immobilier parisien a-t-il évolué depuis la crise du Covid ?***")
     st.subheader(
         "Ce tableau de bord raconte le basculement post-Covid : "
@@ -143,8 +143,8 @@ def render(df: pd.DataFrame):
 
     st.markdown(
         """
-**Contexte & source.**  
-La base **DVF géolocalisées** (data.gouv.fr) recense les mutations immobilières enregistrées par l'administration fiscale.  
+**Contexte**  
+La base **DVF géolocalisées** recense les mutations immobilières enregistrées par l'administration fiscale.  
 En suivant **2020-2024** sur Paris (75), on peut objectiver le **changement de régime** post-Covid : niveaux de **prix au m²**,  
 **liquidité** (volumes de ventes) et **composition** du marché (mix par surfaces/pièces).
 
@@ -152,7 +152,7 @@ En suivant **2020-2024** sur Paris (75), on peut objectiver le **changement de r
 **Trois questions essentielles**
 1. **Cycle** - Observe-t-on un **avant/après 2021** et un **refroidissement 2023-2024** ?  
 2. **Liquidité** - Les **volumes** se renormalisent-ils ? Où le marché reste-t-il **actif** ?  
-3. **Mix** - La part des **petites surfaces (<= 40 m²)** progresse-t-elle ? q
+3. **Mix** - La part des **petites surfaces (<= 40 m²)** progresse-t-elle ?
 
 > Les sections suivantes reprennent ces questions dans l'ordre : *Overview* (trajectoires globales) puis *Deep Dives* (comparaisons ciblées).
 """
@@ -167,8 +167,8 @@ En suivant **2020-2024** sur Paris (75), on peut objectiver le **changement de r
 - **Source** : Demandes de valeurs foncières (**DVF**) géolocalisées - data.gouv.fr
 
 ## Navigation
-- **Intro** — Contexte, question, carte.
-- **Overview** — Trajectoire globale 2020-2024 :  
+- **Intro** - Contexte, question, carte.
+- **Overview** - Trajectoire globale 2020-2024 :  
   - **KPI** : *Prix médian au m²*, *Volumes trimestriels*, *Part en dessous de 40 m²*, etc.
 - **Deep Dives**:  
   - **Où la baisse est la plus marquée ?**

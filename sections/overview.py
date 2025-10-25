@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import altair as alt
 
-# --- Compat Altair / Streamlit: width="stretch" (new) vs use_container_width=True (legacy)
+
 def _altair(chart, title: str | None = None):
     if title:
         chart = chart.properties(title=title)
@@ -39,15 +39,15 @@ def _kpi(value, label, fmt=None, help_text=None):
     st.metric(label, value if value is not None else "—", help=help_text)
 
 def render(df: pd.DataFrame):
-    st.header("🔎 Overview")
+    st.header("Overview")
 
     # =======================
-    # 0) KPIs — photo de la sélection
+    # 0) KPIs
     # =======================
     st.subheader("Que dit la photo de la sélection ?")
 
     small_mask = (
-        df["classe_surface_m2"].astype(str).isin(["<25", "25–40"])
+        df["classe_surface_m2"].astype(str).isin(["<25", "25-40"])
         if "classe_surface_m2" in df.columns
         else pd.Series(False, index=df.index)
     )
@@ -115,7 +115,7 @@ def render(df: pd.DataFrame):
 
         st.markdown(
             f"""
-De **{_fmt_nb(p1, unit='€')}** en **2020–2021** à **{_fmt_nb(p2, unit='€')}** en **2023–2024**
+De **{_fmt_nb(p1, unit='€')}** en **2020-2021** à **{_fmt_nb(p2, unit='€')}** en **2023-2024**
 (**{_fmt_nb(delta_pct, unit='%')}**). Le **pic** apparaît vers **{peak_q}** (≈ {_fmt_nb(peak_val, unit='€')})
 et le niveau récent est {_fmt_nb(last_val, unit='€')} (**{_fmt_nb(drawdown, unit='%')}** depuis le pic)."""
         )
@@ -125,7 +125,7 @@ et le niveau récent est {_fmt_nb(last_val, unit='€')} (**{_fmt_nb(drawdown, u
     # =======================
     # 2) Volumes de transactions (trimestriel)
     # =======================
-    st.subheader("2) La liquidité s’est-elle normalisée ?")
+    st.subheader("2) La liquidité s'est-elle normalisée ?")
 
     if "trimestre" in df.columns:
         base_group_col = "id_mutation" if "id_mutation" in df.columns else "date_mutation"
@@ -174,13 +174,13 @@ est de **{_fmt_nb(mom, unit='%')}**."""
         st.info("Colonne 'trimestre' absente pour le volume trimestriel.")
 
     # =======================
-    # 3) Part des petites surfaces (≤ 40 m²)
+    # 3) Part des petites surfaces
     # =======================
-    st.subheader("3) La part des petites surfaces (≤ 40 m²) progresse-t-elle ?")
+    st.subheader("3) La part des petites surfaces (<= 40 m²) progresse-t-elle ?")
 
     if {"classe_surface_m2", "trimestre"}.issubset(df.columns):
         df_part = _ensure_period_index(df).dropna(subset=["tri_date"]).copy()
-        df_part["is_small"] = df_part["classe_surface_m2"].astype(str).isin(["<25", "25–40"])
+        df_part["is_small"] = df_part["classe_surface_m2"].astype(str).isin(["<25", "25-40"])
         g_part = (
             df_part.groupby("trimestre", as_index=False, observed=True)
             .agg(part_small=("is_small", "mean"))
@@ -196,7 +196,7 @@ est de **{_fmt_nb(mom, unit='%')}**."""
                 tooltip=["trimestre", alt.Tooltip("part_small:Q", format=".1%")],
             )
         )
-        _altair(chart, "Part des petites surfaces (≤ 40 m²) — trajectoire trimestrielle")
+        _altair(chart, "Part des petites surfaces (<= 40 m²) — trajectoire trimestrielle")
 
         def _period_share(d: pd.DataFrame, years: tuple[int, int]):
             a, b = years
@@ -209,16 +209,16 @@ est de **{_fmt_nb(mom, unit='%')}**."""
 
         st.markdown(
             f"""
-La part ≤ 40 m² est **{_fmt_nb(s1, unit='%')}** en **2020–2021** et **{_fmt_nb(s2, unit='%')}** en **2023–2024**
-(**{_fmt_nb(s_delta, unit='%')}** d’écart)."""
+La part ≤ 40 m² est **{_fmt_nb(s1, unit='%')}** en **2020–2021** et **{_fmt_nb(s2, unit='%')}** en **2023-2024**
+(**{_fmt_nb(s_delta, unit='%')}** d'écart)."""
         )
     else:
         st.info("Colonnes nécessaires absentes pour la part des petites surfaces.")
 
     # =======================
-    # 4) Où sont les zones les plus chères aujourd’hui ? (médiane €/m²)
+    # 4) Où sont les zones les plus chères aujourd’hui ?
     # =======================
-    st.subheader("4) Où sont les zones les plus chères aujourd’hui ? (médiane €/m²)")
+    st.subheader("4) Où sont les zones les plus chères aujourd'hui ? (médiane €/m²)")
 
     if {"arrondissement", "prix_m2"}.issubset(df.columns) and not df["arrondissement"].isna().all():
         g_arr = (
@@ -256,7 +256,7 @@ La part ≤ 40 m² est **{_fmt_nb(s1, unit='%')}** en **2020–2021** et **{_fmt
             f"""
 Top actuel : {_triplet(head)}.  
 En bas de classement : {_triplet(tail)}.  
-Écart observé entre l’arrondissement le plus cher et le moins cher : **{_fmt_nb(float(spread), unit='€')}**."""
+Écart observé entre l'arrondissement le plus cher et le moins cher : **{_fmt_nb(float(spread), unit='€')}**."""
         )
     else:
         st.info("Colonnes nécessaires absentes pour le classement par arrondissement.")
@@ -265,5 +265,5 @@ En bas de classement : {_triplet(tail)}.
     # 5) Tableau d’aperçu (sélection)
     # =======================
     st.subheader("5) Aperçu des données filtrées")
-    with st.expander("Afficher 50 lignes d’exemple"):
+    with st.expander("Afficher 50 lignes"):
         st.dataframe(df.head(50), width="stretch")

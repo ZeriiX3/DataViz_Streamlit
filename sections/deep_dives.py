@@ -7,7 +7,6 @@ import numpy as np
 import altair as alt
 
 
-# --- compat Altair: width="stretch" vs use_container_width=True
 def _altair(chart, title: str | None = None):
     if title:
         chart = chart.properties(title=title)
@@ -200,8 +199,6 @@ La variation (%) négatif = baisse
     En haut à droite : zones **chères** et **actives** ; un déplacement vers la gauche/bas signale **moins d'activité** et/ou **prix plus bas**.
                     """
                 )
-
-
 
 
 
