@@ -4,8 +4,6 @@ Tableau de bord Streamlit construit sur les **DVF géolocalisées** (Paris - 75)
 
 Par Sébastien XU - EFREI Paris - Promo 2027
 
-Déploiement : 
-
 Repo : https://github.com/ZeriiX3/DataViz_Streamlit
 
 ## 1) Fonctionnalités
