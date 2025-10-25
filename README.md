@@ -23,8 +23,7 @@ Par Sébastien XU - EFREI Paris - Promo 2027
 
 ```bash
 # 1) Cloner le dépôt
-git clone <ton-repo>.git
-cd <ton-repo>
+git clone https://github.com/ZeriiX3/DataViz_Streamlit.git
 
 # 2) Créer un environnement
 python -m venv .venv
