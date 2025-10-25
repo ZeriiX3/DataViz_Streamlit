@@ -3,7 +3,8 @@
 Tableau de bord Streamlit construit sur les **DVF géolocalisées** (Paris - 75) pour analyser le basculement post-Covid.
 
 Par Sébastien XU - EFREI Paris - Promo 2027
-https://zeriix3-dataviz-streamlit-app-9a67nd.streamlit.app/
+
+Déploiement : https://zeriix3-dataviz-streamlit-app-9a67nd.streamlit.app/
 
 ## 1) Fonctionnalités
 
