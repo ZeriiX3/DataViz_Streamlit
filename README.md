@@ -6,6 +6,8 @@ Par Sébastien XU - EFREI Paris - Promo 2027
 
 Déploiement : https://zeriix3-dataviz-streamlit-app-9a67nd.streamlit.app/
 
+Repo : https://github.com/ZeriiX3/DataViz_Streamlit
+
 ## 1) Fonctionnalités
 
 - **Intro** : contexte, carte des transactions.
