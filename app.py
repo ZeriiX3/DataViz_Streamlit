@@ -5,7 +5,6 @@ from pathlib import Path
 from sections.intro import render as render_intro
 from sections.overview import render as render_overview
 from sections.deep_dives import render as render_deep_dives
-from sections.debug import render as render_debug
 
 from utils.io import load_data_cached, dir_signature
 from utils.prep import make_df_clean_cached
@@ -116,7 +115,7 @@ if "surface_reelle_bati" in df_sel.columns:
 
 
 # ---------------------- Tabs ----------------------
-tab_intro, tab_overview, tab_deep, tab_debug = st.tabs(["Intro", "Overview", "Deep Dives", "Debug"])
+tab_intro, tab_overview, tab_deep = st.tabs(["Intro", "Overview", "Deep Dives"])
 
 with tab_intro:
     render_intro(df_sel)
@@ -132,6 +131,7 @@ with tab_deep:
         st.info("Aucune donnée pour ces filtres.")
     else:
         render_deep_dives(df_sel)  # Q&R : comparaisons P1 vs P2
+
 
 
 # ---------------------- Footer : Source & licence ----------------------
