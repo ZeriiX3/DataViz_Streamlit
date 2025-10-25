@@ -1,17 +1,18 @@
 # Paris, un marché en mutation (2020–2024)
 
-Tableau de bord Streamlit construit sur les **DVF géolocalisées** (Paris – 75) pour analyser le basculement post-Covid :
-**prix au m²**, **volumes** et **mix** (surfaces/pièces) par période, arrondissement et typologie.
+Tableau de bord Streamlit construit sur les **DVF géolocalisées** (Paris - 75) pour analyser le basculement post-Covid.
+
+Par Sébastien XU - EFREI Paris - Promo 2027
 
 ## 1) Fonctionnalités
 
-- **Intro** : contexte, carte des transactions (échantillon, couleurs par quantiles €/m²).
-- **Overview** : KPIs, trajectoires **prix** / **volumes** / **part ≤ 40 m²**, classement des arrondissements.
+- **Intro** : contexte, carte des transactions.
+- **Overview** : KPIs, trajectoires, classement des arrondissements.
 - **Deep Dives** : comparaisons **P1 (2020–2021)** vs **P2 (2022–2024)**
   - baisses de médiane par arrondissement,
-  - **volume vs niveau** (scatter **P1 vs P2** avec trait de liaison),
+  - **volume vs niveau** 
   - distributions de prix superposées,
-  - tableau détaillé (ventes, médiane, p10–p90, % ≤ 40 m², surface médiane).
+  - tableau détaillé
 - **Conclusions** : synthèse, implications et “next steps”.
 
 ## 2) Prérequis
